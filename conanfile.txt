@@ -1,0 +1,6 @@
+[requires]
+catch2/2.13.9
+nlohmann_json/3.10.5
+[generators]
+CMakeDeps
+CMakeToolchain
