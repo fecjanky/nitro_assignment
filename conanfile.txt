@@ -1,6 +1,7 @@
 [requires]
 catch2/2.13.9
 nlohmann_json/3.10.5
+gsl-lite/0.40.0
 [generators]
 cmake_find_package
 cmake_paths

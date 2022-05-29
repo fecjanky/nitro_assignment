@@ -1,3 +1,12 @@
 {
-    "testMate.cpp.debug.configTemplate": null
+    "testMate.cpp.debug.configTemplate": {
+        "type": "cppvsdbg",
+        "linux": { "type": "cppdbg", "MIMode": "gdb" },
+        "program": "${exec}",
+        "args": "${argsArray}",
+        "cwd": "${cwd}",
+        "env": "${envObj}",
+        "environment": "${envObjArray}",
+        "sourceFileMap": "${sourceFileMapObj}",
+      }
 }
