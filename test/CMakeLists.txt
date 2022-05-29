@@ -9,5 +9,7 @@ project("test binaries" CXX)
 
 set(FILES "src/unit.cpp")
 add_executable("unit_test" ${FILES})
-target_link_libraries("unit_test" Catch2::Catch2)
+target_link_libraries("unit_test" Catch2::Catch2 )
+
+add_test(NAME "unit"  COMMAND unit_test)
 
