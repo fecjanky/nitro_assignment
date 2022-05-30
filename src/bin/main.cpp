@@ -65,6 +65,7 @@ try {
     nitro::partition_tree pt(std::move(rects));
     auto                  interections = pt.intersections();
     print_output(std::cout, interections);
+    return 0;
 
 } catch (const std::exception& ex) {
     return -1;
