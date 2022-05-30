@@ -2,6 +2,7 @@ if( NOT CONFIG_CMAKE_INCLUDED)
 set(CONFIG_CMAKE_INCLUDED 1)
 
 
+
 if(UNIX)
     SET( CMAKE_CXX_FLAGS_COVERAGE "${CMAKE_CXX_FLAGS_DEBUG} -fPIC -fprofile-arcs -ftest-coverage -fno-inline -fno-inline-small-functions -fno-default-inline -O0"
             CACHE STRING "Flags used by the C++ compiler during coverage builds."

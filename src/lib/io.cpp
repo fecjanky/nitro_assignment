@@ -1,4 +1,5 @@
 #include "nitro/fwd.hpp"
+#include "nitro/rectangle.hpp"
 #include <nitro/io.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <ranges>
@@ -10,11 +11,11 @@ rectangle to_rectangle(nlohmann::json j, std::size_t id)
         { j["w"].get<coordinate_t>(), j["h"].get<coordinate_t>() }, id };
 }
 
-std::vector<rectangle> to_rectangles(nlohmann::json j)
+rectangles_list to_rectangles(nlohmann::json j)
 {
-    const auto&            arr = j["rects"].get<nlohmann::json::array_t>();
-    std::vector<rectangle> result;
-    std::size_t            cnt { 1 };
+    const auto&     arr = j["rects"].get<nlohmann::json::array_t>();
+    rectangles_list result;
+    std::size_t     cnt { 1 };
     for (const auto& v : arr) {
         result.push_back(to_rectangle(v, cnt++));
     }
@@ -27,7 +28,8 @@ std::ostream& operator<<(std::ostream& os, const point& p)
 }
 std::ostream& operator<<(std::ostream& os, const rectangle& r)
 {
-    return os << r.origin() << ", w=" << r.width() << ", h=" << r.height();
+    return os << '\t' << r.id() << ": Rectangle at " << r.origin() << ", w=" << r.width()
+              << ", h=" << r.height() << '.';
 }
 
 }

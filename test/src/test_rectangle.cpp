@@ -1,13 +1,12 @@
 #include "test_utils.hpp"
 #include <bits/ranges_algo.h>
+#include <catch2/catch.hpp>
 #include <compare>
 #include <cstddef>
 #include <nitro/fwd.hpp>
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
 
-#include <nitro/geometry.hpp>
 #include <nitro/io.hpp>
+#include <nitro/rectangle.hpp>
 
 #include <type_traits>
 
@@ -69,7 +68,7 @@ TEST_CASE("test rectangle from json text", "[io][basic]")
 
 TEST_CASE("full input parsing", "[io][basic]")
 {
-    const auto rect_json = R"-(
+    const auto  rect_json = R"-(
 {
 "rects": [
 {"x": 100, "y": 300, "w": 250, "h": 80 },
@@ -77,7 +76,8 @@ TEST_CASE("full input parsing", "[io][basic]")
 ]
 }
 )-"_json;
-    const auto rects     = nitro::to_rectangles(rect_json);
+    const auto  rectsl    = nitro::to_rectangles(rect_json);
+    std::vector rects(rectsl.begin(), rectsl.end());
     REQUIRE(rects.size() == 2);
     REQUIRE(rects[0].origin().x == 100);
     REQUIRE(rects[0].origin().y == 300);
@@ -173,7 +173,7 @@ TEST_CASE("rectangle set", "[basic][rectangle]")
 
     std::vector v { &r1, &r2, &r3, &r4, &r101, &r2 };
 
-    auto s = nitro::partition_tree::sorted<nitro::horizontal_sort>(v);
+    auto s = nitro::sorted<nitro::vertical>(v);
     REQUIRE(s.size() == 5);
 
     std::vector<nitro::rect_ptr> lower(s.begin(), s.lower_bound(101));
@@ -189,4 +189,96 @@ TEST_CASE("rectangle set", "[basic][rectangle]")
     REQUIRE(upper[1]->id() == 2);
     REQUIRE(s.find(&r_notinset) == s.end());
     REQUIRE((*s.find(&r101_copy))->id() == 101);
+}
+
+TEST_CASE("rectangle set rev vertical", "[basic][rectangle]")
+{
+    using nr = nitro::rectangle;
+
+    nr r1 { { 100, 200 }, { 20, 20 }, id(1) };
+    nr r2 { { 100, 200 }, { 20, 40 }, id(2) };
+
+    std::vector v { &r1, &r2 };
+    auto        s = nitro::sorted<nitro::rev_vertical>(v);
+    REQUIRE(s.size() == 2);
+    REQUIRE((*s.begin())->id() == 2);
+    REQUIRE((*std::next(s.begin()))->id() == 1);
+}
+
+TEST_CASE("rectangle set rev horizintal", "[basic][rectangle]")
+{
+    using nr = nitro::rectangle;
+
+    nr r1 { { 100, 200 }, { 20, 20 }, id(1) };
+    nr r2 { { 100, 200 }, { 40, 20 }, id(2) };
+
+    std::vector v { &r1, &r2 };
+    auto        s = nitro::sorted<nitro::rev_horizontal>(v);
+    REQUIRE(s.size() == 2);
+    REQUIRE((*s.begin())->id() == 2);
+    REQUIRE((*std::next(s.begin()))->id() == 1);
+}
+
+TEST_CASE("rectangle intersection", "[intesection][rectangle]")
+{
+    using nr = nitro::rectangle;
+    using np = nitro::point;
+
+    nr r1 { { 100, 100 }, { 250, 80 }, id(1) };
+    nr r2 { { 120, 200 }, { 250, 150 }, id(2) };
+    nr r3 { { 140, 160 }, { 250, 100 }, id(3) };
+    nr r4 { { 160, 140 }, { 350, 190 }, id(4) };
+    SECTION("r1-None")
+    {
+        const auto i = nr::intersect(r1, std::nullopt);
+        REQUIRE(i == std::nullopt);
+    }
+    SECTION("r1-r2")
+    {
+        const auto i = nr::intersect(r1, r2);
+        REQUIRE(i == std::nullopt);
+    }
+    SECTION("r1-r3")
+    {
+        const auto i = nr::intersect(r1, r3);
+        REQUIRE(i->origin() == np { 140, 160 });
+        REQUIRE(i->extent() == np { 210, 20 });
+        REQUIRE(std::is_eq(*nr::intersect(r1, r3) <=> *nr::intersect(r3, r1)));
+    }
+    SECTION("r1-r4")
+    {
+        const auto i = nr::intersect(r1, r4);
+        REQUIRE(i->origin() == np { 160, 140 });
+        REQUIRE(i->extent() == np { 190, 40 });
+    }
+    SECTION("r2-r3")
+    {
+        const auto i = nr::intersect(r2, r3);
+        REQUIRE(i->origin() == np { 140, 200 });
+        REQUIRE(i->extent() == np { 230, 60 });
+    }
+    SECTION("r2-r4")
+    {
+        const auto i = nr::intersect(r2, r4);
+        REQUIRE(i->origin() == np { 160, 200 });
+        REQUIRE(i->extent() == np { 210, 130 });
+    }
+    SECTION("r3-r4")
+    {
+        const auto i = nr::intersect(r3, r4);
+        REQUIRE(i->origin() == np { 160, 160 });
+        REQUIRE(i->extent() == np { 230, 100 });
+    }
+    SECTION("r1-r3-r4")
+    {
+        const auto i = nr::intersect(r1, nr::intersect(r4, r3));
+        REQUIRE(i->origin() == np { 160, 160 });
+        REQUIRE(i->extent() == np { 190, 20 });
+    }
+    SECTION("r2-r3-r4")
+    {
+        const auto i = nr::intersect(r4, nr::intersect(r2, r3));
+        REQUIRE(i->origin() == np { 160, 200 });
+        REQUIRE(i->extent() == np { 210, 60 });
+    }
 }
