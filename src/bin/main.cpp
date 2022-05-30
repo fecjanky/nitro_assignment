@@ -2,12 +2,14 @@
 #include "nitro/exceptions.hpp"
 #include "nitro/fwd.hpp"
 #include "nitro/rectangle.hpp"
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <nitro/nitro.hpp>
 
 #include <exception>
 #include <nlohmann/json_fwd.hpp>
+#include <string>
 
 auto open_file(auto&& path)
 {
@@ -51,10 +53,26 @@ std::ostream& print_output(
     return os;
 }
 
+void print_help(int argc, char* argv[])
+{
+    std::cerr << "Usage: " << argv[0] << " <json file> [<optional timeout value in seconds>]\n";
+}
+
+auto get_timeout(int argc, char* argv[])
+{
+    auto timeout = nitro::partition_tree::default_timeout;
+    if (argc > 2) {
+        timeout = nitro::partition_tree::secs { std::stoul(argv[2]) };
+    }
+    return timeout;
+}
+
 int main(int argc, char* argv[])
 try {
     if (argc < 2)
         throw nitro::invalid_arg("missing JSON file input");
+    const auto timeout = get_timeout(argc, argv);
+
     auto ifs          = open_file(argv[1]);
     auto jtext        = nlohmann::json::parse(ifs);
     auto old_resource = std::pmr::get_default_resource();
@@ -62,13 +80,17 @@ try {
     std::pmr::set_default_resource(&pool);
     auto rects = nitro::to_rectangles(jtext);
     print_input(std::cout, rects);
-    nitro::partition_tree pt(std::move(rects));
+    nitro::partition_tree pt(std::move(rects), timeout);
     auto                  interections = pt.intersections();
     print_output(std::cout, interections);
     return 0;
 
 } catch (const std::exception& ex) {
+    std::cerr << ex.what() << '\n';
+    print_help(argc, argv);
     return -1;
 } catch (...) {
+    std::cerr << "unknown exception ... \n";
+    print_help(argc, argv);
     return -2;
 }

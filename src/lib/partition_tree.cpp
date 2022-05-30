@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <bits/ranges_algo.h>
 #include <cassert>
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <nitro/partition_tree.hpp>
@@ -15,20 +16,22 @@
 
 namespace nitro {
 
+using pt = partition_tree;
+
+template <typename orientation_type>
+void build_nodes_impl(pt::tp start, std::optional<pt::secs> const& to, pt::node* parent,
+    pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves, rectangles_list& rects,
+    sorted_rectangles&& sorted_rects);
+
 void partition_tree::build()
 {
     sorted_rectangles sorted_rects(ordering_t { ordering_of_t<vertical> {} });
     rng::copy(m_rects | views::transform(address_of_f {}),
         std::inserter(sorted_rects, sorted_rects.begin()));
 
-    build_nodes(nullptr, m_root, m_nodes, m_leaf_nodes, m_rects, std::move(sorted_rects));
+    return build_nodes_impl<vertical>(m_start_time, m_timeout, nullptr, m_root, m_nodes,
+        m_leaf_nodes, m_rects, std::move(sorted_rects));
 }
-
-using pt = partition_tree;
-
-template <typename orientation_type>
-void build_nodes_impl(pt::node* parent, pt::node*& target, pt::node_list& nodes,
-    pt::node_ptr_list& leaves, rectangles_list& rects, sorted_rectangles&& sorted_rects);
 
 void add_node(pt::node* parent, pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves,
     sorted_rectangles&& rects)
@@ -39,8 +42,9 @@ void add_node(pt::node* parent, pt::node*& target, pt::node_list& nodes, pt::nod
     leaves.push_back(std::addressof(new_node));
 }
 template <typename Next_Orientation>
-void change_orientation(Next_Orientation, pt::node* parent, pt::node*& target, pt::node_list& nodes,
-    pt::node_ptr_list& leaves, rectangles_list& rects, sorted_rectangles&& above)
+void change_orientation(Next_Orientation, pt::tp start, std::optional<pt::secs> const& to,
+    pt::node* parent, pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves,
+    rectangles_list& rects, sorted_rectangles&& above)
 {
     if (pt::is_homogeneous(above)) {
         add_node(parent, target, nodes, leaves, std::move(above));
@@ -49,13 +53,17 @@ void change_orientation(Next_Orientation, pt::node* parent, pt::node*& target, p
     sorted_rectangles ro_sorted_rects = sorted<Next_Orientation>(above);
     // reverse_t<ordering_of_t<vertical>>{};
     build_nodes_impl<Next_Orientation>(
-        parent, target, nodes, leaves, rects, std::move(ro_sorted_rects));
+        start, to, parent, target, nodes, leaves, rects, std::move(ro_sorted_rects));
 }
 
 template <typename orientation_type>
-void build_nodes_impl(pt::node* parent, pt::node*& target, pt::node_list& nodes,
-    pt::node_ptr_list& leaves, rectangles_list& rects, sorted_rectangles&& sorted_rects)
+void build_nodes_impl(pt::tp start, std::optional<pt::secs> const& to, pt::node* parent,
+    pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves, rectangles_list& rects,
+    sorted_rectangles&& sorted_rects)
 {
+    if (to && pt::clock::now() > start + *to) {
+        throw timeout("Calculation timed out ...");
+    }
     if (sorted_rects.empty()) {
         target = nullptr;
     }
@@ -74,27 +82,20 @@ void build_nodes_impl(pt::node* parent, pt::node*& target, pt::node_list& nodes,
     // obtain ownership of newly created rectangles
     rects.splice(rects.begin(), std::move(new_rects));
     if (below.empty()) {
-        // if there are no new splits we can stop
+        // if there are no new splits we can continue with the next orientation
         assert(above.size() == sorted_rects.size());
-        change_orientation(next_orientation_t<orientation_type> {}, parent, target, nodes, leaves,
-            rects, std::move(above));
+        change_orientation(next_orientation_t<orientation_type> {}, start, to, parent, target,
+            nodes, leaves, rects, std::move(above));
 
         return;
     }
     // else continue recursively on both children
     auto& new_node = nodes.emplace_back(pt::node { .parent = parent });
     target         = std::addressof(new_node);
-    build_nodes_impl<orientation_type>(
-        std::addressof(new_node), new_node.below, nodes, leaves, rects, std::move(below));
-    build_nodes_impl<orientation_type>(
-        std::addressof(new_node), new_node.above, nodes, leaves, rects, std::move(above));
-}
-
-void partition_tree::build_nodes(node* parent, node*& target, node_list& nodes,
-    node_ptr_list& leaves, rectangles_list& rects, sorted_rectangles&& sorted_rects)
-{
-    return build_nodes_impl<vertical>(
-        parent, target, nodes, leaves, rects, std::move(sorted_rects));
+    build_nodes_impl<orientation_type>(start, to, std::addressof(new_node), new_node.below, nodes,
+        leaves, rects, std::move(below));
+    build_nodes_impl<orientation_type>(start, to, std::addressof(new_node), new_node.above, nodes,
+        leaves, rects, std::move(above));
 }
 
 template <typename HintF>
@@ -108,7 +109,7 @@ void add_rect(std::optional<rectangle> const& r, rectangles_list& rect_list,
 }
 
 template <typename orientation_type, typename ExpectedOrdering>
-auto space_slice_impl(orientation_type orientation, type_tag<ExpectedOrdering>,
+auto slice_ordered_impl(orientation_type orientation, type_tag<ExpectedOrdering>,
     sorted_rectangles const&           rects) -> slice_t
 {
     if (!std::holds_alternative<ExpectedOrdering>(rects.key_comp()))
@@ -127,20 +128,20 @@ auto space_slice_impl(orientation_type orientation, type_tag<ExpectedOrdering>,
 
 auto partition_tree::slice(horizontal h, sorted_rectangles const& rects) -> slice_t
 {
-    return space_slice_impl(h, type_tag<vertical_sort> {}, rects);
+    return slice_ordered_impl(h, type_tag<vertical_sort> {}, rects);
 }
 
 auto partition_tree::slice(vertical v, sorted_rectangles const& rects) -> slice_t
 {
-    return space_slice_impl(v, type_tag<horizontal_sort> {}, rects);
+    return slice_ordered_impl(v, type_tag<horizontal_sort> {}, rects);
 }
 auto partition_tree::slice(rev_vertical v, sorted_rectangles const& rects) -> slice_t
 {
-    return space_slice_impl(v, type_tag<rev_horizontal_sort> {}, rects);
+    return slice_ordered_impl(v, type_tag<rev_horizontal_sort> {}, rects);
 }
 auto partition_tree::slice(rev_horizontal v, sorted_rectangles const& rects) -> slice_t
 {
-    return space_slice_impl(v, type_tag<rev_vertical_sort> {}, rects);
+    return slice_ordered_impl(v, type_tag<rev_vertical_sort> {}, rects);
 }
 
 bool partition_tree::is_homogeneous(sorted_rectangles const& rects)
@@ -160,8 +161,10 @@ bool partition_tree::intersection::operator<(const intersection& other) const no
         return false;
     return rng::lexicographical_compare(m_rects, other.m_rects, std::less<>(), to_id(), to_id());
 }
-partition_tree::partition_tree(rectangles_list lst)
+partition_tree::partition_tree(rectangles_list lst, std::optional<secs> timeout)
     : m_rects(std::move(lst))
+    , m_start_time(std::chrono::system_clock::now())
+    , m_timeout(timeout)
 {
     build();
 }

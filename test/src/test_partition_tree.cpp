@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <catch2/catch.hpp>
 
+#include "nitro/exceptions.hpp"
 #include "nitro/fwd.hpp"
 #include "nitro/memory_resource.hpp"
 #include "nitro/rectangle.hpp"
@@ -525,6 +526,11 @@ TEST_CASE("space partitioning   concentrical rectangles", "[partition_tree]")
         partition_tree pt(std::move(l));
         REQUIRE(pt.intersections().size() == 99);
     }
+    SECTION("100 rects with timeout")
+    {
+        auto l = get_concentric_rectangles(100);
+        REQUIRE_THROWS_AS(partition_tree(std::move(l), partition_tree::secs { 2 }), timeout);
+    }
     SECTION("100 rects same extent")
     {
         rectangles_list rects;
@@ -534,8 +540,8 @@ TEST_CASE("space partitioning   concentrical rectangles", "[partition_tree]")
         partition_tree pt(std::move(rects));
         REQUIRE(pt.intersections().size() == 1);
         REQUIRE(pt.intersections().begin()->constituents().size() == 100);
-        REQUIRE(pt.intersections().begin()->calculate().origin() == point{100,100});
-        REQUIRE(pt.intersections().begin()->calculate().extent() == point{100,100});
+        REQUIRE(pt.intersections().begin()->calculate().origin() == point { 100, 100 });
+        REQUIRE(pt.intersections().begin()->calculate().extent() == point { 100, 100 });
     }
     std::pmr::set_default_resource(old_resource);
 }

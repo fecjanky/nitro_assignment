@@ -10,7 +10,7 @@
 namespace nitro {
 
 [[nodiscard]] rectangle                 to_rectangle(nlohmann::json, std::size_t id = 0);
-[[nodiscard]] std::pmr::list<rectangle> to_rectangles(nlohmann::json);
+[[nodiscard]] std::pmr::list<rectangle> to_rectangles(nlohmann::json, size_t max_cnt = 1000);
 
 std::ostream& operator<<(std::ostream& os, const point& p);
 std::ostream& operator<<(std::ostream& os, const rectangle& p);

@@ -1,6 +1,7 @@
 #pragma once
 #include <bits/ranges_algo.h>
 
+#include <chrono>
 #include <nitro/exceptions.hpp>
 #include <nitro/fwd.hpp>
 #include <nitro/rectangle.hpp>
@@ -16,9 +17,13 @@ namespace nitro {
 using slice_t = std::tuple<rectangles_list, sorted_rectangles, sorted_rectangles>;
 
 struct partition_tree {
+    using secs  = std::chrono::seconds;
+    using clock = std::chrono::system_clock;
+    using tp    = clock::time_point;
+    static constexpr secs default_timeout { 60 };
 
     static bool is_homogeneous(sorted_rectangles const&);
-    explicit partition_tree(rectangles_list lst);
+    explicit partition_tree(rectangles_list lst, std::optional<secs> timeout = {});
     partition_tree(const partition_tree&)            = delete;
     partition_tree(partition_tree&&)                 = delete;
     partition_tree& operator=(const partition_tree&) = delete;
@@ -78,14 +83,14 @@ struct partition_tree {
     static coordinate_t split_point(sorted_rectangles const& sorted_rects);
 
 private:
-    void        build();
-    static void build_nodes(node* parent, node*& target, node_list& nodes, node_ptr_list& leaves,
-        rectangles_list& rects, sorted_rectangles&&);
+    void build();
 
-    node*           m_root {};
-    rectangles_list m_rects;
-    node_list       m_nodes;
-    node_ptr_list   m_leaf_nodes;
+    node*               m_root {};
+    rectangles_list     m_rects;
+    node_list           m_nodes;
+    node_ptr_list       m_leaf_nodes;
+    tp                  m_start_time;
+    std::optional<secs> m_timeout;
 };
 
 template <typename orientation_type>
