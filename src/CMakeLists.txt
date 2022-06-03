@@ -19,4 +19,4 @@ target_link_libraries(nitro_app PRIVATE nitro_lib)
 find_package(PythonInterp REQUIRED)
 
 string(REPLACE ";" " " CMAKE_CONFIGURATION_LIST "${CMAKE_CONFIGURATION_TYPES}")
-add_test(NAME "functional"  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../test/src/functional.py  -e $<TARGET_FILE:nitro_app> -b ${CMAKE_CURRENT_SOURCE_DIR}/../test/data/expected.txt ${CMAKE_CURRENT_SOURCE_DIR}/../test/data/sample.json CONFIGURATIONS Debug)
+add_test(NAME "functional"  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../test/src/functional.py  -e $<TARGET_FILE:nitro_app> -b ${CMAKE_CURRENT_SOURCE_DIR}/../test/data/expected.txt ${CMAKE_CURRENT_SOURCE_DIR}/../test/data/sample.json CONFIGURATIONS ${CMAKE_CONFIGURATION_LIST})
