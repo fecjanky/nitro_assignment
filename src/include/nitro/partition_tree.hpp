@@ -23,28 +23,15 @@ struct partition_tree {
 
     static bool is_homogeneous(sorted_rectangles const&);
     explicit partition_tree(rectangles_list lst, std::optional<secs> timeout = {});
-    partition_tree(const partition_tree&)            = delete;
-    partition_tree(partition_tree&&)                 = delete;
+    partition_tree(const partition_tree&) = delete;
+    partition_tree(partition_tree&&)      = delete;
     partition_tree& operator=(const partition_tree&) = delete;
-    partition_tree& operator=(partition_tree&&)      = delete;
+    partition_tree& operator=(partition_tree&&) = delete;
 
     static slice_t slice(horizontal, sorted_rectangles const&);
     static slice_t slice(vertical, sorted_rectangles const&);
     static slice_t slice(rev_vertical, sorted_rectangles const&);
     static slice_t slice(rev_horizontal, sorted_rectangles const&);
-
-    struct node {
-        node*             parent {};
-        node*             below {};
-        node*             above {};
-        sorted_rectangles rects {};
-    };
-
-    auto  leaf_begin() const { return m_leaf_nodes.begin(); }
-    auto  leaf_end() const { return m_leaf_nodes.end(); }
-    auto& leaves() const noexcept { return m_leaf_nodes; }
-    using node_list     = std::list<node>;
-    using node_ptr_list = std::list<node const*>;
 
     struct intersection {
         static constexpr auto id_comp() noexcept
@@ -67,6 +54,7 @@ struct partition_tree {
             };
         }
         bool operator<(const intersection& other) const noexcept;
+        bool operator==(const intersection& other) const noexcept;
 
         auto& constituents() const noexcept { return m_rects; }
 
@@ -75,8 +63,9 @@ struct partition_tree {
     private:
         std::vector<rect_ptr> m_rects;
     };
+    using intersection_set = std::pmr::set<intersection>;
 
-    std::pmr::set<intersection> intersections() const;
+    intersection_set const& intersections() const;
 
     template <typename orientation_type>
     static coordinate_t split_point(sorted_rectangles const& sorted_rects);
@@ -84,10 +73,8 @@ struct partition_tree {
 private:
     void build();
 
-    node*               m_root {};
+    intersection_set    m_intersections;
     rectangles_list     m_rects;
-    node_list           m_nodes;
-    node_ptr_list       m_leaf_nodes;
     tp                  m_start_time;
     std::optional<secs> m_timeout;
 };

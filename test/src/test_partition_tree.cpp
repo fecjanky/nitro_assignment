@@ -493,6 +493,24 @@ auto get_concentric_rectangles(coordinate_t count)
         });
     return rects;
 }
+void check_concentric_rectangles(coordinate_t count, partition_tree::intersection_set const& isecs)
+{
+    coordinate_t extent = 0;
+    REQUIRE(isecs.size() == count - 1);
+
+    for (auto it = isecs.rbegin(); it != isecs.rend(); ++it, --count) {
+        REQUIRE(it->constituents().size() == count);
+        auto rid = 1;
+        for (auto& r : it->constituents()) {
+            REQUIRE(r->id() == rid);
+            rid++;
+        }
+        const auto rintersection = it->calculate();
+        REQUIRE(rintersection.origin() == point { count - 1, count - 1 });
+        REQUIRE(rintersection.extent() == point { 2 * extent + 1, 2 * extent + 1 });
+        ++extent;
+    }
+}
 
 TEST_CASE("space partitioning   concentrical rectangles", "[partition_tree]")
 {
@@ -518,18 +536,19 @@ TEST_CASE("space partitioning   concentrical rectangles", "[partition_tree]")
     {
         auto           l = get_concentric_rectangles(10);
         partition_tree pt(std::move(l));
-        REQUIRE(pt.intersections().size() == 9);
+        check_concentric_rectangles(10, pt.intersections());
     }
     SECTION("100 rects")
     {
         auto           l = get_concentric_rectangles(100);
         partition_tree pt(std::move(l));
-        REQUIRE(pt.intersections().size() == 99);
+        check_concentric_rectangles(100, pt.intersections());
     }
-    SECTION("100 rects with timeout")
+    SECTION("200 rects")
     {
-        auto l = get_concentric_rectangles(100);
-        REQUIRE_THROWS_AS(partition_tree(std::move(l), partition_tree::secs { 2 }), timeout);
+        auto           l = get_concentric_rectangles(200);
+        partition_tree pt(std::move(l));
+        check_concentric_rectangles(200, pt.intersections());
     }
     SECTION("100 rects same extent")
     {
@@ -542,6 +561,33 @@ TEST_CASE("space partitioning   concentrical rectangles", "[partition_tree]")
         REQUIRE(pt.intersections().begin()->constituents().size() == 100);
         REQUIRE(pt.intersections().begin()->calculate().origin() == point { 100, 100 });
         REQUIRE(pt.intersections().begin()->calculate().extent() == point { 100, 100 });
+    }
+    std::pmr::set_default_resource(old_resource);
+}
+
+TEST_CASE("space partitioning   concentrical rectangles many", "[partition_tree][slow]")
+{
+    auto old_resource = std::pmr::get_default_resource();
+    auto pool         = get_default_memory_resource(old_resource);
+    std::pmr::set_default_resource(&pool);
+
+    SECTION("400 rects")
+    {
+        auto           l = get_concentric_rectangles(400);
+        partition_tree pt(std::move(l));
+        check_concentric_rectangles(400, pt.intersections());
+    }
+    SECTION("800 rects")
+    {
+        auto           l = get_concentric_rectangles(800);
+        partition_tree pt(std::move(l));
+        check_concentric_rectangles(800, pt.intersections());
+    }
+    SECTION("1000 rects")
+    {
+        auto           l = get_concentric_rectangles(1000);
+        partition_tree pt(std::move(l));
+        check_concentric_rectangles(1000, pt.intersections());
     }
     std::pmr::set_default_resource(old_resource);
 }

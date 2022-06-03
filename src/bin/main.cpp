@@ -31,7 +31,7 @@ std::ostream& print_intersection(std::ostream& os, const nitro::partition_tree::
 {
     const auto r = i.calculate();
 
-    os << '\t' << "Between rectangle ";
+    os << "    " << "Between rectangle ";
     auto last_elem_it = std::prev(i.constituents().end());
     for (auto it = i.constituents().begin(); it != i.constituents().end(); ++it) {
         os << (*it)->id();

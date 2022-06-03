@@ -16,4 +16,7 @@ set (BIN_SRC  bin/main.cpp)
 add_executable(nitro_app  ${BIN_SRC})
 target_link_libraries(nitro_app PRIVATE nitro_lib)
 
-add_test("functional"  nitro_app ${CMAKE_CURRENT_SOURCE_DIR}/../test/data/sample.json )
+find_package(PythonInterp REQUIRED)
+
+string(REPLACE ";" " " CMAKE_CONFIGURATION_LIST "${CMAKE_CONFIGURATION_TYPES}")
+add_test(NAME "functional"  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../test/src/functional.py  -e $<TARGET_FILE:nitro_app> -b ${CMAKE_CURRENT_SOURCE_DIR}/../test/data/expected.txt ${CMAKE_CURRENT_SOURCE_DIR}/../test/data/sample.json CONFIGURATIONS Debug)

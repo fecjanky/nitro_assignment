@@ -33,7 +33,7 @@ std::ostream& operator<<(std::ostream& os, const point& p)
 }
 std::ostream& operator<<(std::ostream& os, const rectangle& r)
 {
-    return os << '\t' << r.id() << ": Rectangle at " << r.origin() << ", w=" << r.width()
+    return os << "    " << r.id() << ": Rectangle at " << r.origin() << ", w=" << r.width()
               << ", h=" << r.height() << '.';
 }
 

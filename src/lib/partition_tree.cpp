@@ -18,9 +18,8 @@ namespace nitro {
 using pt = partition_tree;
 
 template <typename orientation_type>
-void build_nodes_impl(pt::tp start, std::optional<pt::secs> const& to, pt::node* parent,
-    pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves, rectangles_list& rects,
-    sorted_rectangles&& sorted_rects);
+void build_nodes_impl(pt::tp start, std::optional<pt::secs> const& to, rectangles_list& rects,
+    sorted_rectangles&& sorted_rects, pt::intersection_set& intersections);
 
 void partition_tree::build()
 {
@@ -28,46 +27,40 @@ void partition_tree::build()
     rng::copy(m_rects | views::transform(address_of_f {}),
         std::inserter(sorted_rects, sorted_rects.begin()));
 
-    return build_nodes_impl<vertical>(m_start_time, m_timeout, nullptr, m_root, m_nodes,
-        m_leaf_nodes, m_rects, std::move(sorted_rects));
+    return build_nodes_impl<vertical>(
+        m_start_time, m_timeout, m_rects, std::move(sorted_rects), m_intersections);
 }
 
-void add_node(pt::node* parent, pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves,
-    sorted_rectangles&& rects)
+void add_leaf_node(sorted_rectangles&& rects, pt::intersection_set& intersections)
 {
-    auto& new_node = nodes.emplace_back(pt::node { .parent = parent });
-    target         = std::addressof(new_node);
-    new_node.rects = std::move(rects);
-    leaves.push_back(std::addressof(new_node));
+    if (rects.size() > 1)
+        intersections.emplace(std::move(rects));
 }
 template <typename Next_Orientation>
 void change_orientation(Next_Orientation, pt::tp start, std::optional<pt::secs> const& to,
-    pt::node* parent, pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves,
-    rectangles_list& rects, sorted_rectangles&& above)
+    rectangles_list& rects, sorted_rectangles&& above, pt::intersection_set& intersections)
 {
     if (pt::is_homogeneous(above)) {
-        add_node(parent, target, nodes, leaves, std::move(above));
+        add_leaf_node(std::move(above), intersections);
         return;
     }
     sorted_rectangles ro_sorted_rects = sorted<Next_Orientation>(above);
-    // reverse_t<ordering_of_t<vertical>>{};
-    build_nodes_impl<Next_Orientation>(
-        start, to, parent, target, nodes, leaves, rects, std::move(ro_sorted_rects));
+    build_nodes_impl<Next_Orientation>(start, to, rects, std::move(ro_sorted_rects), intersections);
 }
 
 template <typename orientation_type>
-void build_nodes_impl(pt::tp start, std::optional<pt::secs> const& to, pt::node* parent,
-    pt::node*& target, pt::node_list& nodes, pt::node_ptr_list& leaves, rectangles_list& rects,
-    sorted_rectangles&& sorted_rects)
+void build_nodes_impl(pt::tp start, std::optional<pt::secs> const& to, rectangles_list& rects,
+    sorted_rectangles&& sorted_rects, pt::intersection_set& intersections)
 {
     if (to && pt::clock::now() > start + *to) {
         throw timeout("Calculation timed out ...");
     }
-    if (sorted_rects.empty()) {
-        target = nullptr;
+    if (sorted_rects.size() < 2) {
+        return;
     }
-    if (sorted_rects.size() == 1) {
-        add_node(parent, target, nodes, leaves, std::move(sorted_rects));
+
+    // if intersection has already been discovered then don't continue
+    if (intersections.find(pt::intersection(std::as_const(sorted_rects))) != intersections.end()) {
         return;
     }
 
@@ -83,18 +76,14 @@ void build_nodes_impl(pt::tp start, std::optional<pt::secs> const& to, pt::node*
     if (below.empty()) {
         // if there are no new splits we can continue with the next orientation
         assert(above.size() == sorted_rects.size());
-        change_orientation(next_orientation_t<orientation_type> {}, start, to, parent, target,
-            nodes, leaves, rects, std::move(above));
+        change_orientation(next_orientation_t<orientation_type> {}, start, to, rects,
+            std::move(above), intersections);
 
         return;
     }
     // else continue recursively on both children
-    auto& new_node = nodes.emplace_back(pt::node { .parent = parent });
-    target         = std::addressof(new_node);
-    build_nodes_impl<orientation_type>(start, to, std::addressof(new_node), new_node.below, nodes,
-        leaves, rects, std::move(below));
-    build_nodes_impl<orientation_type>(start, to, std::addressof(new_node), new_node.above, nodes,
-        leaves, rects, std::move(above));
+    build_nodes_impl<orientation_type>(start, to, rects, std::move(below), intersections);
+    build_nodes_impl<orientation_type>(start, to, rects, std::move(above), intersections);
 }
 
 template <typename HintF>
@@ -109,7 +98,7 @@ void add_rect(std::optional<rectangle> const& r, rectangles_list& rect_list,
 
 template <typename orientation_type, typename ExpectedOrdering>
 auto slice_ordered_impl(orientation_type orientation, type_tag<ExpectedOrdering>,
-    sorted_rectangles const&           rects) -> slice_t
+    sorted_rectangles const&             rects) -> slice_t
 {
     if (!std::holds_alternative<ExpectedOrdering>(rects.key_comp()))
         throw invalid_arg("invalid sorting of rectangles");
@@ -160,6 +149,12 @@ bool partition_tree::intersection::operator<(const intersection& other) const no
         return false;
     return rng::lexicographical_compare(m_rects, other.m_rects, std::less<>(), to_id(), to_id());
 }
+
+bool partition_tree::intersection::operator==(const intersection& other) const noexcept
+{
+    return m_rects.size() == other.m_rects.size() && m_rects == other.m_rects;
+}
+
 partition_tree::partition_tree(rectangles_list lst, std::optional<secs> timeout)
     : m_rects(std::move(lst))
     , m_start_time(std::chrono::system_clock::now())
@@ -168,13 +163,9 @@ partition_tree::partition_tree(rectangles_list lst, std::optional<secs> timeout)
     build();
 }
 
-auto partition_tree::intersections() const -> std::pmr::set<partition_tree::intersection>
+auto partition_tree::intersections() const -> intersection_set const&
 {
-    auto&& isecs = leaves() | views::filter([](auto&& node) { return node->rects.size() > 1; })
-        | views::transform([](auto&& node) { return intersection(node->rects); });
-    std::pmr::set<intersection> out;
-    rng::copy(isecs, std::inserter(out, out.begin()));
-    return out;
+    return m_intersections;
 }
 
 rectangle partition_tree::intersection::calculate() const
