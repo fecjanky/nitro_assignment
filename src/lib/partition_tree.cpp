@@ -2,7 +2,6 @@
 #include "nitro/fwd.hpp"
 #include "nitro/rectangle.hpp"
 #include <algorithm>
-#include <bits/ranges_algo.h>
 #include <cassert>
 #include <chrono>
 #include <cstddef>

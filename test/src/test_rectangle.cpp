@@ -1,5 +1,4 @@
 #include "test_utils.hpp"
-#include <bits/ranges_algo.h>
 #include <catch2/catch.hpp>
 #include <compare>
 #include <cstddef>

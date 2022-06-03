@@ -3,8 +3,7 @@
 Please see attached [document](spec.pdf) for the specification
 
 ## build & test
-NOTE: build has been only tested with gcc 11.2 and on Linux, however with minimal effort Win build is posible.
-
+NOTE: build has been only tested with gcc 11.2  on Linux and CL  19.29.30141 on Windows
 * create build director
 ```bash
 mkdir build
