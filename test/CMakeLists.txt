@@ -11,5 +11,6 @@ set(FILES "src/main.cpp" "src/test_rectangle.cpp" "src/test_partition_tree.cpp")
 add_executable("unit_test" ${FILES})
 target_link_libraries("unit_test" Catch2::Catch2  nitro_lib)
 add_test( "unit" unit_test "~[slow]" -d yes )
+add_test( NAME "unit_release" COMMAND unit_test "[slow]" -d yes  CONFIGURATIONS Release )
 
 
